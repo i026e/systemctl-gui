@@ -84,7 +84,11 @@ class UnitWrapper(GObject.GObject):
                     "kill" : stl.kill,
                     "disable" : stl.disable,
                     "enable": stl.enable,
-                    "reload" : stl.reload,   }
+                    "reload" : stl.reload,   
+                    "status" : stl.get_status,
+                    "dependencies" : stl.get_dependencies,
+                    "properties": stl.get_properties}
+                    
     def __init__(self, unit_id, *args):
         GObject.GObject.__init__(self)
         Logger.debug("Processing %s", unit_id)
@@ -95,13 +99,15 @@ class UnitWrapper(GObject.GObject):
         self.update_status()
         
     def execute(self, command):
+        result = None
         if command in self.stl_commands:
             try:            
-                self.stl_commands.get(command)(self.id_)
+                result = self.stl_commands.get(command)(self.id_)
             except Exception as e:
                 Logger.error("%s %s():\n%s\n", self.id_, command, e)
-            self.update_status()
-           
+            finally:
+                self.update_status()
+        return result           
         
     def update_status(self):
         self.active = stl.is_active(self.id_)
@@ -266,25 +272,24 @@ class ContextMenu():
                              }
     
     
-    def __init__(self, builder, model):
+    def __init__(self, builder, model, details_window):
         self.builder = builder  
         self.model = model
+        self.details_window = details_window
+        self.current_path = 0    
+        self.current_unit = None
         
-        self.context_menu = self.builder.get_object("popup_menu")
-        
+        self.context_menu = self.builder.get_object("popup_menu")        
         
         self.menuitem_details = self.builder.get_object("details_menuitem")
+        self.menuitem_details.connect("activate", self._on_menuitem_details)        
         
         self.unit_menuitems = {}
         for name, action in ContextMenu.UNIT_ACTION_MENUITEMS.items():
             item = self.builder.get_object(name)
             item.connect("activate", self._on_unit_action_activated, action)
             self.unit_menuitems[name] = item    
-        
-        self.current_path = 0    
-        self.current_unit = None
-          
-        
+              
     def show(self, path, widget, event):
         self.current_path = path
         self.current_unit = self.model.get_unit_at_path(self.current_path)
@@ -308,16 +313,21 @@ class ContextMenu():
             
         self.current_unit = None
         
+    def _on_menuitem_details(self, menuitem):
+        if self.current_unit is not None:
+            self.details_window.show(self.current_path)
             
 class ServicesView():
-    def __init__(self, builder, model):
+    def __init__(self, builder, model, context_menu, details_window):
         self.builder = builder
         self.model = model
+        self.context_menu = context_menu
+        self.details_window = details_window
         
         self.__init_view()
         self.__add_columns()
         
-        self.context_menu = ContextMenu(self.builder, self.model)
+        
         
     def __init_view(self):
         self.view = self.builder.get_object("services_view")
@@ -352,6 +362,12 @@ class ServicesView():
         if self.selection.count_selected_rows() >= 1:
             path = self.selection.get_selected_rows()[1][0]            
             self.context_menu.show(path, widget, event)
+            
+    def _show_details_window(self, widget, event):
+        if self.selection.count_selected_rows() >= 1:
+            path = self.selection.get_selected_rows()[1][0]
+            self.details_window.show(path)
+        
         
     def _on_active_flag_toggled(self, renderer, str_path, *data):        
         unit = self.model.get_unit_at_path(str_path)
@@ -377,16 +393,91 @@ class ServicesView():
         if event.button == 3: #right button
             self._show_context_menu(widget, event)
             return False
+        elif event.type == Gdk.EventType._2BUTTON_PRESS: #double click
+            self._show_details_window(widget, event)
+            return False
            
     def _on_key_pressed(self, widget, event):
         #do not reset selection
         keyname = Gdk.keyval_name(event.keyval)       
 
-        if keyname == "Menu":
+        if keyname in {"Menu"}:
             self._show_context_menu(widget, event)
-            return False
+            return True
+        elif keyname in {"Return"}:
+            self._show_details_window(widget, event)
+            return True
         
+class DetailsWindow:
+    def __init__(self, builder, model, parent_window):
+        self.builder = builder
+        self.model = model
+        
+        self.window = self.builder.get_object("details_window")
+        self.window.connect("delete-event", self.on_hide)
+        self.window.set_transient_for(parent_window)
+        
+        self.__init_buttons()
+        self.__init_widgets()
+        
+        self.current_path = 0    
+        self.current_unit = None
+        
+    def __init_widgets(self):
+        self.id_label = self.builder.get_object("details_id_label")
+        self.status_view = self.builder.get_object("details_status_view")
+        self.dep_view = self.builder.get_object("details_depend_view")
+        self.prop_view = self.builder.get_object("details_prop_view")       
+        
+        
+    def __init_buttons(self):
+        self.ok_button = self.builder.get_object("details_ok_button")
+        self.ok_button.connect("clicked", self.on_hide)
+        
+        
+    def show(self, path):
+        self.current_path = path        
+        self.current_unit = self.model.get_unit_at_path(self.current_path)
+        
+        if self.current_unit is not None:
+            self._update_widgets()            
+        
+        self.ok_button.grab_focus()    
+        self.window.show()
+        
+    def _update_widgets(self):
+        self.id_label.set_text(self.current_unit.id_)
+        self._set_status()
+        self._set_dependencies()
+        self._set_properties()
+        
+    def _set_text(self, textview, text):
+        textview.get_buffer().set_text(text)
+        return False #!!! For idle_add
+        
+    @async_method    
+    def _set_status(self):
+        status = self.current_unit.execute("status")
+        GObject.idle_add(self._set_text, self.status_view , status)
 
+    @async_method    
+    def _set_dependencies(self):
+        dependencies = self.current_unit.execute("dependencies")
+        GObject.idle_add(self._set_text, self.dep_view, dependencies)
+        
+    @async_method
+    def  _set_properties(self):
+        properties = self.current_unit.execute("properties")
+        GObject.idle_add(self._set_text, self.prop_view, properties)       
+        
+        
+    def on_hide(self, *args):
+        self.current_unit = None
+        self.window.hide()
+        return True #!!! otherwise segfault on next show
+        
+        
+        
 class MainWindow:
     def __init__(self):
         self.builder = Gtk.Builder()
@@ -397,7 +488,14 @@ class MainWindow:
         self.window.connect("delete-event", self.on_close)
         
         self.model = ServicesDataModel()
-        self.view = ServicesView(self.builder, self.model)
+        self.details_window = DetailsWindow(self.builder, self.model, self.window)
+        
+        self.context_menu = ContextMenu(self.builder, self.model, 
+                                        self.details_window)        
+                
+        
+        self.view = ServicesView(self.builder, self.model, 
+                                 self.context_menu, self.details_window)
         
     def run(self):
         self.window.show()

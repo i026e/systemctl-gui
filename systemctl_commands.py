@@ -38,17 +38,24 @@ def list_units():
                 
     return units_list
     
-def get_description(unit_id):
-    out = run_command("systemctl", "status", unit_id)
-    data = out.strip().split("\n")
+def get_status(unit_id):
+    return run_command("systemctl", "status", unit_id).strip()
     
+def get_description(unit_id):
+    data = get_status(unit_id).split("\n")    
     try:    
         descr = data[0].split(" - ")[-1].strip()
     except Exception as e:
         Logger.error(e)
         descr = unit_id
     finally:
-        return descr        
+        return descr 
+        
+def get_dependencies(unit_id):
+    return run_command("systemctl", "list-dependencies", unit_id).strip()   
+    
+def get_properties(unit_id):
+    return run_command("systemctl", "show", unit_id).strip()  
     
 def is_enabled(unit_id):
     val = run_command("systemctl", "is-enabled", "--value", unit_id)

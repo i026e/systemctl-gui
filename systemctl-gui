@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+
+gksu python3 systemctl_gui.py
