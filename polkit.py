@@ -15,7 +15,6 @@ def _on_cancel(cancellable):
     return False
 
 def execute(func, *args, **kwargs):
-
     def check_authorization_cb(authority, res, loop):
         try:
             result = authority.check_authorization_finish(res)

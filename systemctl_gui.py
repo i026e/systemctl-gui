@@ -10,7 +10,7 @@ sys.path.append( "../" )
 
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gdk, GObject
+from gi.repository import Gio, Gtk, Gdk, GObject
 
 import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL) #handle Ctrl-C
@@ -21,12 +21,13 @@ import threading
 #from systemd.manager import Manager
 
 import systemctl_commands as stl
+import editor
 
 GLADE_FILE = "gui.glade"
 APP = "mime-editor-gui"
 
 #FORMAT = '%(asctime)-15s %(clientip)s %(user)-8s %(message)s'
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+#logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 Logger = logging.getLogger(APP)
 Logger.setLevel(logging.DEBUG)
 
@@ -78,17 +79,6 @@ def async_method(func):
     return start
         
 class UnitWrapper(GObject.GObject):
-    stl_commands = {"stop" : stl.stop,
-                    "start" : stl.start,
-                    "restart" : stl.restart,
-                    "kill" : stl.kill,
-                    "disable" : stl.disable,
-                    "enable": stl.enable,
-                    "reload" : stl.reload,   
-                    "status" : stl.get_status,
-                    "dependencies" : stl.get_dependencies,
-                    "properties": stl.get_properties}
-                    
     def __init__(self, unit_id, *args):
         GObject.GObject.__init__(self)
         Logger.debug("Processing %s", unit_id)
@@ -99,15 +89,19 @@ class UnitWrapper(GObject.GObject):
         self.update_status()
         
     def execute(self, command):
-        result = None
-        if command in self.stl_commands:
-            try:            
-                result = self.stl_commands.get(command)(self.id_)
-            except Exception as e:
-                Logger.error("%s %s():\n%s\n", self.id_, command, e)
-            finally:
-                self.update_status()
-        return result           
+        return stl.execute(self.id_, command)
+        
+    def get_content(self):
+        return stl.get_content(self.id_)
+        
+    def get_properties(self):
+        return stl.get_properties(self.id_)
+        
+    def get_status(self):
+        return stl.get_status(self.id_)
+
+    def get_dependencies(self):
+        return stl.get_dependencies(self.id_)        
         
     def update_status(self):
         self.active = stl.is_active(self.id_)
@@ -317,12 +311,33 @@ class ContextMenu():
         if self.current_unit is not None:
             self.details_window.show(self.current_path)
             
-class ServicesView():
-    def __init__(self, builder, model, context_menu, details_window):
+class CommandsMenu(Gtk.Menu):
+    def __init__(self, on_command):
+        self.on_command = on_command
+        
+        super(CommandsMenu, self).__init__()
+        
+        for name in sorted(stl.ALLOWED_ACTIONS.keys()):
+            descr = stl.ALLOWED_ACTIONS.get(name, ("", ""))[1]
+            menuitem = Gtk.MenuItem()
+            menuitem.set_label(name)
+            menuitem.set_tooltip_text(descr)
+            
+            menuitem.connect("activate", self.on_activate, name)
+            self.append(menuitem)            
+
+        self.show_all()            
+
+    def on_activate(self, widget, command_name):
+        self.on_command(command_name)
+        
+class ServicesView:
+    def __init__(self, builder, model, details_window):
         self.builder = builder
-        self.model = model
-        self.context_menu = context_menu
+        self.model = model        
         self.details_window = details_window
+        self.context_menu = ContextMenu(self.builder, self.model, 
+                                        self.details_window) 
         
         self.__init_view()
         self.__add_columns()
@@ -407,34 +422,66 @@ class ServicesView():
         elif keyname in {"Return"}:
             self._show_details_window(widget, event)
             return True
+            
+            
+       
+
         
+        
+       
+        #self.commands_box.add_attribute(cell, 'tooltip', self.ACTION_DESCR_COL)
+        
+            
 class DetailsWindow:
+    UNIT_ACTION_BUTTONS = {  "details_start_btn" : "start",
+                             "details_stop_btn" : "stop",
+                             "details_restart_btn" : "restart",
+                             "details_kill_btn" : "kill",
+                             "details_enable_btn" : "enable",
+                             "details_disable_btn" : "disable",
+                             "details_reload_btn" : "reload" }
     def __init__(self, builder, model, parent_window):
         self.builder = builder
         self.model = model
         
+        self.current_path = 0    
+        self.current_unit = None
+        self.editor = None
+        
         self.window = self.builder.get_object("details_window")
-        self.window.connect("delete-event", self.on_hide)
+        self.window.connect("delete-event", self._on_hide)
         self.window.set_transient_for(parent_window)
         
         self.__init_buttons()
         self.__init_widgets()
         
-        self.current_path = 0    
-        self.current_unit = None
+        
+        
+
         
     def __init_widgets(self):
         self.id_label = self.builder.get_object("details_id_label")
         self.status_view = self.builder.get_object("details_status_view")
+        self.content_view = self.builder.get_object("details_content_view")
         self.dep_view = self.builder.get_object("details_depend_view")
-        self.prop_view = self.builder.get_object("details_prop_view")       
+        self.prop_view = self.builder.get_object("details_prop_view")
         
+
         
     def __init_buttons(self):
         self.ok_button = self.builder.get_object("details_ok_button")
-        self.ok_button.connect("clicked", self.on_hide)
+        self.ok_button.connect("clicked", self._on_hide)
         
+        self.action_button = self.builder.get_object("details_action_menu_button")
+        self.action_button.set_popup(CommandsMenu(self._on_command_clicked))
         
+        self.edit_button = self.builder.get_object("details_edit_button")
+        self.edit_button.connect("clicked", self._on_edit_clicked, "normal")
+        
+        self.edit_full_button = self.builder.get_object("details_edit_full_button")
+        self.edit_full_button.connect("clicked", self._on_edit_clicked, "full")
+        
+         
     def show(self, path):
         self.current_path = path        
         self.current_unit = self.model.get_unit_at_path(self.current_path)
@@ -448,6 +495,7 @@ class DetailsWindow:
     def _update_widgets(self):
         self.id_label.set_text(self.current_unit.id_)
         self._set_status()
+        self._set_content()
         self._set_dependencies()
         self._set_properties()
         
@@ -457,26 +505,50 @@ class DetailsWindow:
         
     @async_method    
     def _set_status(self):
-        status = self.current_unit.execute("status")
+        status = self.current_unit.get_status()
         GObject.idle_add(self._set_text, self.status_view , status)
 
     @async_method    
     def _set_dependencies(self):
-        dependencies = self.current_unit.execute("dependencies")
+        dependencies = self.current_unit.get_dependencies()
         GObject.idle_add(self._set_text, self.dep_view, dependencies)
         
     @async_method
     def  _set_properties(self):
-        properties = self.current_unit.execute("properties")
-        GObject.idle_add(self._set_text, self.prop_view, properties)       
+        properties = self.current_unit.get_properties()
+        GObject.idle_add(self._set_text, self.prop_view, properties) 
+    
+    @async_method    
+    def _set_content(self):
+        content = self.current_unit.get_content()
+        GObject.idle_add(self._set_text, self.content_view, content)
+     
+    @async_method    
+    def _start_editor(self, mode):
+        if self.editor is None:
+            self.editor = editor.Editor(self._on_edit_completed)
         
+        self.editor.run_editor(self.current_unit.id_, mode)
         
-    def on_hide(self, *args):
+    def _on_hide(self, *args):
         self.current_unit = None
         self.window.hide()
         return True #!!! otherwise segfault on next show
         
+    def _on_command_clicked(self, command):
+        if self.current_unit is  not None:
+            self.current_unit.execute(command)
+            self.model.update_unit_at_path(self.current_path)
+            self._update_widgets()
+            
+    def _on_edit_clicked(self, widget, mode):        
+        self._start_editor(mode)
         
+    def _on_edit_completed(self, unit_id):
+        if (self.current_unit is not None) and \
+            (self.current_unit.id_ == unit_id):
+                GObject.idle_add(self._update_widgets)
+            
         
 class MainWindow:
     def __init__(self):
@@ -489,13 +561,10 @@ class MainWindow:
         
         self.model = ServicesDataModel()
         self.details_window = DetailsWindow(self.builder, self.model, self.window)
-        
-        self.context_menu = ContextMenu(self.builder, self.model, 
-                                        self.details_window)        
-                
+    
         
         self.view = ServicesView(self.builder, self.model, 
-                                 self.context_menu, self.details_window)
+                                 self.details_window)
         
     def run(self):
         self.window.show()

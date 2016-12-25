@@ -9,10 +9,14 @@
     <property name="default_width">600</property>
     <property name="default_height">400</property>
     <property name="destroy_with_parent">True</property>
+    <property name="icon_name">application-x-executable</property>
+    <property name="has_resize_grip">True</property>
+    <property name="show_menubar">False</property>
     <child>
       <object class="GtkBox" id="details_box">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
+        <property name="hexpand">False</property>
         <property name="orientation">vertical</property>
         <child>
           <object class="GtkLabel" id="details_id_label">
@@ -37,20 +41,72 @@
             <property name="can_focus">False</property>
             <property name="scrollable">True</property>
             <child>
-              <object class="GtkScrolledWindow" id="details_status_scr_window">
+              <object class="GtkBox">
                 <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="vexpand">True</property>
-                <property name="shadow_type">in</property>
-                <property name="min_content_height">5</property>
+                <property name="can_focus">False</property>
+                <property name="orientation">vertical</property>
                 <child>
-                  <object class="GtkTextView" id="details_status_view">
+                  <object class="GtkScrolledWindow" id="details_status_scr_window">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="vexpand">True</property>
-                    <property name="editable">False</property>
-                    <property name="wrap_mode">word</property>
+                    <property name="shadow_type">in</property>
+                    <property name="min_content_height">5</property>
+                    <child>
+                      <object class="GtkTextView" id="details_status_view">
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="hscroll_policy">natural</property>
+                        <property name="vscroll_policy">natural</property>
+                        <property name="editable">False</property>
+                        <property name="wrap_mode">word</property>
+                      </object>
+                    </child>
                   </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <child>
+                      <object class="GtkLabel" id="details_status_command_label">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Send command</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="position">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkMenuButton" id="details_action_menu_button">
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="receives_default">True</property>
+                        <property name="direction">right</property>
+                        <property name="use_popover">False</property>
+                        <child>
+                          <placeholder/>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">False</property>
+                        <property name="position">1</property>
+                      </packing>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
                 </child>
               </object>
               <packing>
@@ -65,71 +121,28 @@
               </object>
               <packing>
                 <property name="tab_fill">False</property>
+                <property name="reorderable">True</property>
               </packing>
             </child>
             <child>
-              <object class="GtkBox">
+              <object class="GtkBox" id="details_edit_box">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <property name="homogeneous">True</property>
+                <property name="orientation">vertical</property>
                 <child>
-                  <object class="GtkButtonBox" id="details_act_buttons">
+                  <object class="GtkScrolledWindow" id="details_edit_scr_window">
                     <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="orientation">vertical</property>
-                    <property name="homogeneous">True</property>
-                    <property name="layout_style">start</property>
+                    <property name="can_focus">True</property>
+                    <property name="shadow_type">in</property>
                     <child>
-                      <object class="GtkButton" id="details_start_btn">
-                        <property name="label" translatable="yes">Start</property>
+                      <object class="GtkTextView" id="details_content_view">
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="receives_default">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="hscroll_policy">natural</property>
+                        <property name="vscroll_policy">natural</property>
+                        <property name="editable">False</property>
+                        <property name="wrap_mode">word</property>
                       </object>
-                      <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">0</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkButton" id="details_stop_btn">
-                        <property name="label" translatable="yes">Stop</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="receives_default">True</property>
-                      </object>
-                      <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">1</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkButton" id="details_restart_btn">
-                        <property name="label" translatable="yes">Restart</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="receives_default">True</property>
-                      </object>
-                      <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">2</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkButton" id="details_kill_btn">
-                        <property name="label" translatable="yes">Kill</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="receives_default">True</property>
-                      </object>
-                      <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">3</property>
-                      </packing>
                     </child>
                   </object>
                   <packing>
@@ -142,14 +155,12 @@
                   <object class="GtkButtonBox">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="orientation">vertical</property>
-                    <property name="homogeneous">True</property>
                     <property name="layout_style">start</property>
                     <child>
-                      <object class="GtkButton" id="details_enable_btn">
-                        <property name="label" translatable="yes">Enable</property>
+                      <object class="GtkButton" id="details_edit_button">
+                        <property name="label" translatable="yes">Edit</property>
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
+                        <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
                       </object>
                       <packing>
@@ -159,10 +170,10 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkButton" id="details_disable_btn">
-                        <property name="label" translatable="yes">Disable</property>
+                      <object class="GtkButton" id="details_edit_full_button">
+                        <property name="label" translatable="yes">Edit Full</property>
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
+                        <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
                       </object>
                       <packing>
@@ -172,25 +183,13 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkButton" id="details_reload_btn">
-                        <property name="label" translatable="yes">Reload</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="receives_default">True</property>
-                      </object>
-                      <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">2</property>
-                      </packing>
-                    </child>
-                    <child>
                       <placeholder/>
                     </child>
                   </object>
                   <packing>
-                    <property name="expand">True</property>
-                    <property name="fill">True</property>
+                    <property name="expand">False</property>
+                    <property name="fill">False</property>
+                    <property name="pack_type">end</property>
                     <property name="position">1</property>
                   </packing>
                 </child>
@@ -201,27 +200,30 @@
               </packing>
             </child>
             <child type="tab">
-              <object class="GtkLabel" id="details_page_act">
+              <object class="GtkLabel" id="details_page_edit">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <property name="label" translatable="yes">Actions</property>
+                <property name="label" translatable="yes">Edit</property>
               </object>
               <packing>
                 <property name="position">2</property>
                 <property name="tab_fill">False</property>
+                <property name="reorderable">True</property>
               </packing>
             </child>
             <child>
               <object class="GtkScrolledWindow" id="details_depend_scr_window">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
-                <property name="vexpand">True</property>
                 <property name="shadow_type">in</property>
                 <child>
                   <object class="GtkTextView" id="details_depend_view">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="vexpand">True</property>
+                    <property name="hscroll_policy">natural</property>
+                    <property name="vscroll_policy">natural</property>
+                    <property name="editable">False</property>
+                    <property name="wrap_mode">word</property>
                   </object>
                 </child>
               </object>
@@ -239,6 +241,7 @@
               <packing>
                 <property name="position">2</property>
                 <property name="tab_fill">False</property>
+                <property name="reorderable">True</property>
               </packing>
             </child>
             <child>
@@ -250,6 +253,10 @@
                   <object class="GtkTextView" id="details_prop_view">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
+                    <property name="hscroll_policy">natural</property>
+                    <property name="vscroll_policy">natural</property>
+                    <property name="editable">False</property>
+                    <property name="wrap_mode">word</property>
                   </object>
                 </child>
               </object>
@@ -267,6 +274,7 @@
               <packing>
                 <property name="position">3</property>
                 <property name="tab_fill">False</property>
+                <property name="reorderable">True</property>
               </packing>
             </child>
           </object>
@@ -308,7 +316,7 @@
         </child>
       </object>
     </child>
-    <child type="titlebar">
+    <child>
       <placeholder/>
     </child>
   </object>
@@ -318,6 +326,7 @@
     <property name="default_width">640</property>
     <property name="default_height">400</property>
     <property name="icon_name">application-x-executable</property>
+    <property name="has_resize_grip">True</property>
     <property name="show_menubar">False</property>
     <child>
       <object class="GtkBox">
@@ -510,7 +519,7 @@
         </child>
       </object>
     </child>
-    <child type="titlebar">
+    <child>
       <placeholder/>
     </child>
   </object>

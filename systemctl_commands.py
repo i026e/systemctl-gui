@@ -12,19 +12,43 @@ APP = "mime-editor-gui"
 Logger = logging.getLogger(APP)
 Logger.setLevel(logging.DEBUG)
 
-def run_command(*args):
-    process = subprocess.Popen(args,
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT,
-                           universal_newlines = True)
-    return_code = process.wait()
-    #Logger.debug("return code %s", return_code)
-    
-    return process.stdout.read()
+ALLOWED_ACTIONS = { "enable"                : (("enable",),"Enable unit file"),
+                    "disable"               : (("disable",),"Disable unit file"),
+                    "reenable"              : (("reenable",),"Reenable unit file"),
+                    "preset"                : (("preset",),"Enable/disable unit file based on preset configuration"),
+                    "start"                 : (("start",),"Start (activate) unit"),
+                    "stop"                  : (("stop",),"Stop (deactivate) unit"),
+                    "reload"                : (("reload",),"Reload unit"),
+                    "restart"               : (("restart",),"Start or restart unit"),
+                    "try-restart"           : (("try-restart",),"Restart unit if active"),
+                    "reload-or-restart"     : (("reload-or-restart",),"Reload unit if possible, otherwise start or restart"),
+                    "try-reload-or-restart" : (("try-reload-or-restart",),"If active, reload unit, if supported, otherwise restart"),
+                    "isolate"               : (("isolate",),"Start unit and stop all others"),
+                    "kill"                  : (("kill",),"Send signal to processes of a unit"),
+                    }
 
+def escape(string):
+    return string.replace("&", "&amp;")   
+
+def run_command(*args):
+    output = ""
+    try:
+        process = subprocess.Popen(args,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT,
+                               universal_newlines = True)
+        return_code = process.wait() 
+        output = process.stdout.read()
+        
+        Logger.info("%s : code %s", process.args, return_code)
+        Logger.debug("%s : stdout=\n%s\n\n", process.args, output)
+    except Exception as e:
+        Logger.error("%s", e)
+    finally:
+        return escape(output.strip()) 
+        
 def list_units():
     out = run_command("systemctl", "list-unit-files")
-    out.strip()
     
     units_list = []
     for line in out.split("\n")[1:-2]:
@@ -39,7 +63,10 @@ def list_units():
     return units_list
     
 def get_status(unit_id):
-    return run_command("systemctl", "status", unit_id).strip()
+    return run_command("systemctl", "status", unit_id)
+    
+def get_content(unit_id):
+    return run_command("systemctl", "cat", unit_id)
     
 def get_description(unit_id):
     data = get_status(unit_id).split("\n")    
@@ -64,71 +91,10 @@ def is_enabled(unit_id):
 def is_active(unit_id):
     val = run_command("systemctl", "is-active", "--value", unit_id)
     return "active" == val.strip()
-
-def enable(unit_id):
-    """Enable unit file"""
-    return run_command("systemctl", "enable", unit_id)
     
-  
-def disable(unit_id):
-    """Disable unit file"""
-    return run_command("systemctl", "disable", unit_id)
-   
-  
-def reenable(unit_id):
-    """Reenable unit file"""
-    return run_command("systemctl", "reenable", unit_id)
-    
-  
-def preset(unit_id):
-    """Enable/disable unit file
-       based on preset configuration"""
-    return run_command("systemctl", "preset", unit_id)
-
-  
-def start(unit_id):
-    """Start (activate) unit"""
-    return run_command("systemctl", "start", unit_id)
-
-  
-def stop(unit_id):
-    """Stop (deactivate) unit"""
-    return run_command("systemctl", "stop", unit_id)
-
-  
-def reload(unit_id):
-    """Reload unit"""
-    return run_command("systemctl", "reload", unit_id)
-    
-
-def restart(unit_id):
-    """Start or restart unit"""
-    return run_command("systemctl", "restart", unit_id)
-
-  
-def try_restart(unit_id):
-    """Restart unit if active"""
-    return run_command("systemctl", "try-restart", unit_id)
-
-  
-def reload_or_restart(unit_id):
-    """Reload unit if possible,
-       otherwise start or restart"""
-    return run_command("systemctl", "reload-or-restart", unit_id)
-
-  
-def try_reload_or_restart(unit_id):
-    """If active, reload unit,
-       if supported, otherwise restart"""
-    return run_command("systemctl", "try-reload-or-restart", unit_id)
-
-
-def isolate(unit_id):
-    """Start unit and stop all others"""
-    return run_command("systemctl", "isolate", unit_id)
-
-  
-def kill(unit_id):
-    """Send signal to processes of a unit"""
-    return run_command("systemctl", "kill", unit_id)
-    
+def execute(unit_id, action_name):
+    if action_name in ALLOWED_ACTIONS:
+        action = ALLOWED_ACTIONS.get(action_name)[0]
+        return run_command("systemctl", *action, unit_id)
+    else:
+        Logger.error("%s unknown action: %s", unit_id, action_name)
