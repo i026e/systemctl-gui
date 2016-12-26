@@ -9,7 +9,7 @@ import systemctl_commands as stl
 import app_launcher
 
 from gi.repository import Gtk, GObject
-from utils import logger, async_method
+from utils import logger, async_method, Singleton
 
 class CommandsMenu(Gtk.Menu):
     def __init__(self, on_command):
@@ -31,7 +31,7 @@ class CommandsMenu(Gtk.Menu):
     def on_activate(self, widget, command_name):
         self.on_command(command_name)
 
-class DetailsWindow:
+class DetailsWindow(metaclass = Singleton):
     UNIT_ACTION_BUTTONS = {  "details_start_btn" : "start",
                              "details_stop_btn" : "stop",
                              "details_restart_btn" : "restart",

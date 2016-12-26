@@ -25,6 +25,7 @@ from utils import logger, async_method
 
 from details_gui import DetailsWindow
 from about_gui import AboutDialog
+from log_gui import LogWindow
 
 
 
@@ -218,10 +219,11 @@ class ContextMenu():
                              }
     
     
-    def __init__(self, builder, model, details_window):
+    def __init__(self, builder, model, parent_window):
         self.builder = builder  
         self.model = model
-        self.details_window = details_window
+        self.window = parent_window
+        
         self.current_path = 0    
         self.current_unit = None
         
@@ -261,17 +263,15 @@ class ContextMenu():
         
     def _on_menuitem_details(self, menuitem):
         if self.current_unit is not None:
-            self.details_window.show(self.current_path)
-            
+            DetailsWindow(self.builder, self.model, self.window).show(self.current_path)           
 
         
 class ServicesView:
-    def __init__(self, builder, model, details_window):
+    def __init__(self, builder, model, parent_window):
         self.builder = builder
         self.model = model        
-        self.details_window = details_window
-        self.context_menu = ContextMenu(self.builder, self.model, 
-                                        self.details_window) 
+        self.window = parent_window
+        self.context_menu = ContextMenu(self.builder, self.model, self.window) 
         
         self.__init_view()
         self.__add_columns()
@@ -315,8 +315,7 @@ class ServicesView:
     def _show_details_window(self, widget, event):
         if self.selection.count_selected_rows() >= 1:
             path = self.selection.get_selected_rows()[1][0]
-            self.details_window.show(path)
-        
+            DetailsWindow(self.builder, self.model, self.window).show(path)        
         
     def _on_active_flag_toggled(self, renderer, str_path, *data):        
         unit = self.model.get_unit_at_path(str_path)
@@ -368,9 +367,8 @@ class MainWindow:
         self.window.connect("delete-event", self._on_close)
         
         self.model = ServicesDataModel()
-        self.details_window = DetailsWindow(self.builder, self.model, self.window)
-        self.view = ServicesView(self.builder, self.model, 
-                                 self.details_window)
+        self.view = ServicesView(self.builder, self.model, self.window)
+
         
         self.__init_menu()
         
@@ -402,7 +400,7 @@ class MainWindow:
         self.model.reload()
         
     def _on_log(self, *args):
-        pass
+        LogWindow(self.builder, self.window).show()
     
     def _on_about(self, *args):
         AboutDialog(self.builder, self.window).show()
