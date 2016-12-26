@@ -6,11 +6,7 @@ Created on Wed Dec 21 13:41:48 2016
 @author: pavel
 """
 import subprocess
-import logging
-
-APP = "mime-editor-gui"
-Logger = logging.getLogger(APP)
-Logger.setLevel(logging.DEBUG)
+from utils import logger
 
 ALLOWED_ACTIONS = { "enable"                : (("enable",),"Enable unit file"),
                     "disable"               : (("disable",),"Disable unit file"),
@@ -39,11 +35,11 @@ def run_command(*args):
                                universal_newlines = True)
         return_code = process.wait() 
         output = process.stdout.read()
-        
-        Logger.info("%s : code %s", process.args, return_code)
-        Logger.debug("%s : stdout=\n%s\n\n", process.args, output)
+
+        logger.debug("%s : code %s \n stdout=\n %s \n\n", process.args, 
+                     return_code, output)
     except Exception as e:
-        Logger.error("%s", e)
+        logger.error(e)
     finally:
         return escape(output.strip()) 
         
@@ -58,7 +54,7 @@ def list_units():
                 unit, status = line.split()                
                 units_list.append((unit, status))
             except Exception as e:
-                Logger.error(e)
+                logger.error(e)
                 
     return units_list
     
@@ -73,7 +69,7 @@ def get_description(unit_id):
     try:    
         descr = data[0].split(" - ")[-1].strip()
     except Exception as e:
-        Logger.error(e)
+        logger.error(e)
         descr = unit_id
     finally:
         return descr 
@@ -97,4 +93,10 @@ def execute(unit_id, action_name):
         action = ALLOWED_ACTIONS.get(action_name)[0]
         return run_command("systemctl", *action, unit_id)
     else:
-        Logger.error("%s unknown action: %s", unit_id, action_name)
+        logger.error("%s unknown action: %s", unit_id, action_name)
+
+def daemon_reload():
+    return run_command("systemctl", "daemon−reload")
+    
+def get_systemctl_version():
+    return run_command("systemctl", "--version")
