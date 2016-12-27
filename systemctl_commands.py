@@ -23,8 +23,15 @@ ALLOWED_ACTIONS = { "enable"                : (("enable",),"Enable unit file"),
                     "kill"                  : (("kill",),"Send signal to processes of a unit"),
                     }
 
-def escape(string):
-    return string.replace("&", "&amp;")   
+escape_input_ = str.maketrans({" ":  r"\ "})
+escape_output_ = str.maketrans({"&": r"&amp;"})
+
+
+
+def escape_output(string):
+    return string.translate(escape_output_)   
+def escape_input(string):
+    return string.translate(escape_input_)
 
 def run_command(*args):
     output = ""
@@ -39,13 +46,12 @@ def run_command(*args):
         logger.debug("%s : code %s \n stdout=\n %s \n\n", process.args, 
                      return_code, output)
     except Exception as e:
-        logger.error(e)
+        logger.error("Error %s \nfor command %s", e, " ".join(args))
     finally:
-        return escape(output.strip()) 
+        return escape_output(output.strip()) 
         
 def list_units():
     out = run_command("systemctl", "list-unit-files")
-    
     units_list = []
     for line in out.split("\n")[1:-2]:
         line = line.strip()
@@ -54,18 +60,21 @@ def list_units():
                 unit, status = line.split()                
                 units_list.append((unit, status))
             except Exception as e:
-                logger.error(e)
+                logger.error("problem with unit %s : %s", line, e)
                 
     return units_list
     
 def get_status(unit_id):
+    unit_id = escape_input(unit_id)
     return run_command("systemctl", "status", unit_id)
     
 def get_content(unit_id):
+    unit_id = escape_input(unit_id)
     return run_command("systemctl", "cat", unit_id)
     
-def get_description(unit_id):
-    data = get_status(unit_id).split("\n")    
+def get_description(unit_id):    
+    data = get_status(unit_id).split("\n") 
+
     try:    
         descr = data[0].split(" - ")[-1].strip()
     except Exception as e:
@@ -75,25 +84,31 @@ def get_description(unit_id):
         return descr 
         
 def get_dependencies(unit_id):
+    unit_id = escape_input(unit_id)
     return run_command("systemctl", "list-dependencies", unit_id).strip()   
     
 def get_properties(unit_id):
+    unit_id = escape_input(unit_id)
     return run_command("systemctl", "show", unit_id).strip()  
     
 def is_enabled(unit_id):
+    unit_id = escape_input(unit_id)
     val = run_command("systemctl", "is-enabled", "--value", unit_id)
     return "enabled" == val.strip()
     
 def is_active(unit_id):
+    unit_id = escape_input(unit_id)
     val = run_command("systemctl", "is-active", "--value", unit_id)
     return "active" == val.strip()
     
 def execute(unit_id, action_name):
+    unit_id = escape_input(unit_id)
     if action_name in ALLOWED_ACTIONS:
         action = ALLOWED_ACTIONS.get(action_name)[0]
         return run_command("systemctl", *action, unit_id)
     else:
         logger.error("%s unknown action: %s", unit_id, action_name)
+        return ""
 
 def daemon_reload():
     return run_command("systemctl", "daemon−reload")

@@ -39,10 +39,15 @@ class UnitWrapper(GObject.GObject):
         self.id_ = unit_id
         self.descr = stl.get_description(unit_id) 
         
-        self.update_status()
+        self.update_state()
         
     def execute(self, command):
-        return stl.execute(self.id_, command)
+        result = stl.execute(self.id_, command)
+        logger.info("result of command %s on unit %s:\n%s\n",
+                    command, self.id_, result)
+        
+        self.update_state()
+        return result
         
     def get_content(self):
         return stl.get_content(self.id_)
@@ -56,7 +61,7 @@ class UnitWrapper(GObject.GObject):
     def get_dependencies(self):
         return stl.get_dependencies(self.id_)        
         
-    def update_status(self):
+    def update_state(self):
         self.active = stl.is_active(self.id_)
         self.enabled = stl.is_enabled(self.id_)
             
@@ -64,13 +69,15 @@ class UnitWrapper(GObject.GObject):
         if self.active:
             self.execute("stop")
         else:
-            self.execute("start") 
+            self.execute("start")
+        self.update_status()
             
     def change_enabled(self):
         if self.enabled:
             self.execute("disable")
         else:
             self.execute("enable")
+        self.update_state()
 
         
 class TextColumn(Gtk.TreeViewColumn):
@@ -121,6 +128,25 @@ class FlagColumn(Gtk.TreeViewColumn):
     def set_attribute(self, name, model_column):
         for renderer in self.cell_renderers:
             self.add_attribute(renderer, name, model_column)
+            
+class StatusBar:
+    CONTEXT_ID = 0
+    def __init__(self, builder):
+        self.builder = builder
+        self.bar = builder.get_object("status_bar")
+    
+    def _push(self, message):
+        self.bar.remove_all(StatusBar.CONTEXT_ID)
+        self.bar.push(StatusBar.CONTEXT_ID, message)
+        return False
+        
+    def set_loading(self):
+        GObject.idle_add(self._push, "Loading...")
+        
+    def set_statistic(self, enabled, active, total):
+        message = "Enabled: {e} / Active: {a} / Total: {t}".format(
+        e = enabled, a = active, t = total)
+        GObject.idle_add(self._push, message)
 
 class ServicesDataModel():
     UNIT_COL = 0 #UnitWrapper
@@ -132,7 +158,8 @@ class ServicesDataModel():
     # unit, name, description, loaded, active, path
     LIST_STORE_COLUMN_TYPES = [UnitWrapper, str, str, bool, bool,]# str]
     
-    def __init__(self):        
+    def __init__(self, status_bar):
+        self.status_bar = status_bar
         
         #list_store -> filter -> sort
         self.list_store = Gtk.ListStore(*self.LIST_STORE_COLUMN_TYPES)
@@ -160,6 +187,8 @@ class ServicesDataModel():
 
     @async_method    
     def __load_data(self):
+        self.status_bar.set_loading()
+        
         def append(data):
             self.list_store.append(data)
             return False #for idle_add
@@ -167,8 +196,25 @@ class ServicesDataModel():
         for unit, status in stl.list_units():
             wrapped_unit = UnitWrapper(unit, status)
             unit_data = self.__get_unit_data(wrapped_unit)
-            GObject.idle_add(append, unit_data)            
+            GObject.idle_add(append, unit_data)   
+            
+        self._update_statistics()
 
+    def _update_statistics(self):
+        active = enabled = total = 0
+        
+        def func(model, path, iter_):
+            nonlocal active, enabled, total
+            active += model.get_value(iter_, ServicesDataModel.UNIT_IS_ACTIVE_COL)
+            enabled += model.get_value(iter_, ServicesDataModel.UNIT_IS_ENABLED_COL)
+            total += 1
+        
+        self.list_store.foreach(func)
+        
+        self.status_bar.set_statistic(enabled, active, total)
+        logger.info("Datamodel statistics: active = %s, enabled = %s, total = %s",
+                    active, enabled, total)
+        
             
     def __get_store_path(self, sorted_path):
         """ get list store model path
@@ -197,7 +243,9 @@ class ServicesDataModel():
         for col, val in enumerate(self.__get_unit_data(unit)):
             self.list_store.set_value(iter_, col, val)
             
-    def reload(self):
+        self._update_statistics()
+            
+    def reload(self):        
         self.list_store.clear()
         self.__load_data()
         
@@ -267,11 +315,11 @@ class ContextMenu():
 
         
 class ServicesView:
-    def __init__(self, builder, model, parent_window):
+    def __init__(self, builder, model, parent_window, context_menu):
         self.builder = builder
         self.model = model        
         self.window = parent_window
-        self.context_menu = ContextMenu(self.builder, self.model, self.window) 
+        self.context_menu = context_menu
         
         self.__init_view()
         self.__add_columns()
@@ -366,9 +414,10 @@ class MainWindow:
         self.window = self.builder.get_object("main_window")
         self.window.connect("delete-event", self._on_close)
         
-        self.model = ServicesDataModel()
-        self.view = ServicesView(self.builder, self.model, self.window)
-
+        self.model = ServicesDataModel(StatusBar(self.builder))
+        self.context_menu = ContextMenu(self.builder, self.model, self.window)
+        self.view = ServicesView(self.builder, self.model, self.window,
+                                 self.context_menu)
         
         self.__init_menu()
         
@@ -387,6 +436,9 @@ class MainWindow:
         
         menuitem_man = self.builder.get_object("help_manual_menuitem")
         menuitem_man.connect("activate", self._on_manual)
+        
+        menuitem_edit = self.builder.get_object("edit_menuitem")
+        menuitem_edit.set_submenu(self.context_menu.context_menu)
         
     def run(self):
         self.window.show()
