@@ -70,7 +70,7 @@ class UnitWrapper(GObject.GObject):
             self.execute("stop")
         else:
             self.execute("start")
-        self.update_status()
+        self.update_state()
             
     def change_enabled(self):
         if self.enabled:
